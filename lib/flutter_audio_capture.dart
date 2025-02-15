@@ -24,17 +24,6 @@ class FlutterAudioCapture {
 
   double? _actualSampleRate;
 
-  bool? _initialized;
-
-
-  Future<bool?> init() async {
-    // Only init once
-    if (_initialized != null) return _initialized;
-    _initialized = await _audioCaptureMethodChannel.invokeMethod<bool>("init");
-    return _initialized;
-  }
-
-
   /// Starts listenening to audio.
   ///
   /// Uses [sampleRate] and [bufferSize] for capturing audio.
@@ -47,15 +36,7 @@ class FlutterAudioCapture {
       {int sampleRate = 44100, int bufferSize = 5000, int androidAudioSource = ANDROID_AUDIOSRC_DEFAULT,
         Duration firstDataTimeout = const Duration(seconds: 1),
         bool waitForFirstDataOnAndroid = true, bool waitForFirstDataOnIOS = false}) async {
-    if (_initialized == null) {
-      throw Exception("FlutterAudioCapture must be initialized before use");
-    }
-
-    if (_initialized == false) {
-      throw Exception("FlutterAudioCapture failed to initialize");
-    }
-
-    // We are already listening
+     // We are already listening
     if (_audioCaptureEventChannelSubscription != null) return;
     // init channel stream
     final stream = _audioCaptureEventChannel.receiveBroadcastStream({
