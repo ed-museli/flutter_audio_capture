@@ -10,6 +10,7 @@ import android.os.Looper
 import io.flutter.plugin.common.EventChannel.StreamHandler
 import io.flutter.plugin.common.EventChannel.EventSink
 import java.lang.Exception
+import kotlin.math.max
 
 public class AudioCaptureStreamHandler: StreamHandler {
     public val eventChannelName = "ymd.dev/audio_capture_event_channel"
@@ -19,6 +20,8 @@ public class AudioCaptureStreamHandler: StreamHandler {
     private val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_FLOAT
     private var AUDIO_SOURCE: Int = MediaRecorder.AudioSource.DEFAULT
     private var SAMPLE_RATE: Int = 44000
+    private var BUFFER_SIZE: Int = 0
+
     private val TAG: String = "AudioCaptureStream"
     private var isCapturing: Boolean = false
     private var listener = null
@@ -36,6 +39,10 @@ public class AudioCaptureStreamHandler: StreamHandler {
             val audioSource = arguments["audioSource"]
             if (audioSource != null && audioSource is Int) {
                 AUDIO_SOURCE = audioSource
+            }
+            val bufferSize = arguments["bufferSize"]
+            if (bufferSize != null && bufferSize is Int) {
+                BUFFER_SIZE = bufferSize
             }
         }
         
@@ -107,26 +114,36 @@ public class AudioCaptureStreamHandler: StreamHandler {
 
     private fun record() {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO)
+        
+        val minBufferBytes = AudioRecord.getMinBufferSize(
+            SAMPLE_RATE,
+            CHANNEL_CONFIG,
+            AUDIO_FORMAT
+        )
 
-        val bufferSize: Int = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
-        val bufferCount: Int = 10
-        var bufferIndex: Int = 0
-        val audioBuffer = ArrayList<FloatArray>()
-        val record: AudioRecord = AudioRecord.Builder()
-                        .setAudioSource(AUDIO_SOURCE)
-                        .setAudioFormat(
-                          AudioFormat.Builder()
-                            .setEncoding(AUDIO_FORMAT)
-                            .setSampleRate(SAMPLE_RATE)
-                            .setChannelMask(CHANNEL_CONFIG)
-                            .build()
-                        )
-                        .setBufferSizeInBytes(bufferSize)
-                        .build()
+        val userBufferSamples = if (BUFFER_SIZE > 0) BUFFER_SIZE else minBufferBytes / 4
+        val userBufferBytes = userBufferSamples * 4   // float32 = 4 bytes
+        val finalBufferBytes = max(userBufferBytes, minBufferBytes)
+        val finalBufferSamples = finalBufferBytes / 4
+        val bufferCount = 10
+        var bufferIndex = 0
 
-        for (i in 1..bufferCount) {
-            audioBuffer.add(FloatArray(bufferSize))
+        val audioBuffer = ArrayList<FloatArray>(bufferCount)
+        repeat(bufferCount) {
+            audioBuffer.add(FloatArray(finalBufferSamples))
         }
+
+        val record = AudioRecord.Builder()
+            .setAudioSource(AUDIO_SOURCE)
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AUDIO_FORMAT)
+                    .setSampleRate(SAMPLE_RATE)
+                    .setChannelMask(CHANNEL_CONFIG)
+                    .build()
+            )
+            .setBufferSizeInBytes(finalBufferBytes)
+            .build()
 
         if (record.getState() != AudioRecord.STATE_INITIALIZED) {
             sendError("AUDIO_RECORD_INITIALIZE_ERROR", "AudioRecord can't initialize")
