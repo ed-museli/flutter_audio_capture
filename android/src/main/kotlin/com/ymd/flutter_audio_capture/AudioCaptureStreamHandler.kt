@@ -1,8 +1,12 @@
 package com.ymd.flutter_audio_capture
 
+import android.content.Context
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import android.util.Log
 import android.os.Handler
 import android.os.Looper
@@ -12,7 +16,7 @@ import io.flutter.plugin.common.EventChannel.EventSink
 import java.lang.Exception
 import kotlin.math.max
 
-public class AudioCaptureStreamHandler: StreamHandler {
+public class AudioCaptureStreamHandler(private val context: Context): StreamHandler {
     public val eventChannelName = "ymd.dev/audio_capture_event_channel"
     public var actualSampleRate: Int = 0
     
@@ -147,6 +151,21 @@ public class AudioCaptureStreamHandler: StreamHandler {
 
         if (record.getState() != AudioRecord.STATE_INITIALIZED) {
             sendError("AUDIO_RECORD_INITIALIZE_ERROR", "AudioRecord can't initialize")
+        }
+
+        // Force the built-in mic so a connected wired/BT headset mic is never
+        // used — the app always wants the phone's own mic. API 23+.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val builtInMic = am.getDevices(AudioManager.GET_DEVICES_INPUTS)
+                    .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_MIC }
+                if (builtInMic != null) {
+                    record.setPreferredDevice(builtInMic)
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "setPreferredDevice(built-in mic) failed: $e")
+            }
         }
 
         record.startRecording()

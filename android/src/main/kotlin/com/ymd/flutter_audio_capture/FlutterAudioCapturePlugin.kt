@@ -12,11 +12,14 @@ import io.flutter.plugin.common.MethodChannel.Result
 /** FlutterAudioCapturePlugin */
 public class FlutterAudioCapturePlugin: FlutterPlugin, MethodCallHandler {
   private val methodChannelName = "ymd.dev/audio_capture_method_channel"
-  private val audioCaptureStreamHandler: AudioCaptureStreamHandler = AudioCaptureStreamHandler()
+  // Initialised with the application Context in onAttachedToEngine so the
+  // recorder can pin the built-in mic via AudioManager.
+  private lateinit var audioCaptureStreamHandler: AudioCaptureStreamHandler
   private val TAG: String = "FlutterAudioCapture"
 
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     val messenger = flutterPluginBinding.getBinaryMessenger()
+    audioCaptureStreamHandler = AudioCaptureStreamHandler(flutterPluginBinding.applicationContext)
     EventChannel(messenger, this.audioCaptureStreamHandler.eventChannelName).setStreamHandler(this.audioCaptureStreamHandler)
     MethodChannel(messenger, methodChannelName).setMethodCallHandler(this)
   }
